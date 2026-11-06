@@ -25,6 +25,10 @@ DERIVED = (
     "appdata/generated/",
 )
 CATALOG = "appdata/components.csv"
+# Files KiCad keeps open while it runs. Windows can't replace them then, so a git update
+# that changes one must wait for KiCad to close. parts.sqlite is generated locally (not in
+# git) so normally nothing here changes; this covers older history that still tracked it.
+KICAD_LOCKED = {"appdata/parts.sqlite"}
 
 
 class Git:
@@ -113,6 +117,47 @@ def status(lib):
         added=added, edited=edited, removed=removed,
         parts=sorted(changed - set(added) - set(removed)),
     )
+
+
+def get_latest(lib):
+    """Download teammates' published parts (the Refresh button and the launcher).
+
+    Only fast-forwards: git refuses, touching nothing, if that would overwrite unpublished
+    local edits, and then Publish (which merges both) is the way to get them."""
+    g = Git(lib)
+    if not g.run("rev-parse", "--abbrev-ref", "@{u}", check=False).stdout.strip():
+        return dict(updated=False, message="")
+    if g.run("fetch", "--quiet", check=False).returncode:
+        return dict(updated=False, message="Couldn't reach GitHub; showing the parts on this PC.")
+    behind = int(g.out("rev-list", "--count", "HEAD..@{u}") or 0)
+    if not behind:
+        return dict(updated=False, message="Up to date with everyone's parts.")
+    updates = f"{behind} update{'s' if behind > 1 else ''} from teammates"
+    publish_instead = (f"{updates} to download, and you have unpublished changes. Open "
+                       "Publish to GitHub and click Publish: it merges theirs and yours.")
+    if g.out("rev-list", "--count", "@{u}..HEAD") != "0":
+        return dict(updated=False, message=publish_instead)
+    from . import kicad
+
+    locked = [p for p in g.out("diff", "--name-only", "HEAD", "@{u}").splitlines()
+              if g.lib_path(p) in KICAD_LOCKED]
+    if os.name == "nt" and locked and kicad.running():
+        return dict(updated=False, message=f"{updates}, but this one changes the parts database "
+                    "KiCad keeps open. Close KiCad, then click Refresh.")
+    if g.run("merge", "--ff-only", "--quiet", "@{u}", check=False).returncode:
+        return dict(updated=False, message=publish_instead)
+    # parts.sqlite isn't in git: rebuild this PC's copy (in place, so KiCad can stay open)
+    fresh = Library(lib.root)
+    writes = fresh.compiled(fresh.rows())
+    stale = {k: v for k, v in writes.items() if not _same(fresh.root / k, v)}
+    if stale:
+        try:
+            fresh.transaction(writes, fresh.revision())
+        except PermissionError:
+            return dict(updated=True, message=f"Got {updates}. Close KiCad, then click Refresh "
+                        "to finish updating the parts database.")
+    return dict(updated=True, message=f"Got {updates}. Restart KiCad (or reopen the symbol "
+                "chooser) to see new parts there.")
 
 
 def _merge_catalog(base, ours, theirs, prefer=None):
@@ -234,9 +279,11 @@ def publish(lib, message, prefer=None):
         if merged_others:
             from . import kicad
 
-            if os.name == "nt" and kicad.running():
-                # Windows can't replace parts.sqlite while KiCad has it open; git would stop
-                # halfway and leave a half-updated library. Your changes stay committed locally.
+            locked = [p for p in g.out("diff", "--name-only", "HEAD", upstream).splitlines()
+                      if g.lib_path(p) in KICAD_LOCKED]
+            if os.name == "nt" and locked and kicad.running():
+                # Windows can't replace a file KiCad has open; git would stop halfway and leave
+                # a half-updated library. Your changes stay committed locally.
                 raise ValueError("Close KiCad first: teammates published new parts, and KiCad keeps the "
                                  "parts database locked so they can't be merged in while it's open. "
                                  "Your changes are saved; click Publish again after closing KiCad.")

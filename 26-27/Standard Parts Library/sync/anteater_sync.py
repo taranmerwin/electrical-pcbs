@@ -372,6 +372,40 @@ class Sync:
                 self.n.update(page["id"], {"Status": N.select("Removed")}, label=key)
 
 
+INFO_FILE = "appdata/notion-info.json"
+
+
+def notion_info(pages, part_page):
+    """The PCB Wiki planning fields the Library Manager shows on each part (who added it,
+    what it replaces). "parts": by library ID for linked parts; "rows": every named row, so
+    the app can follow a part's 'Notion: <Component Name>' note before the next sync links it.
+    The sync commits this file so the app needs no Notion token."""
+    def fields(page):
+        return {
+            "row": N.read(page, "Component Name") or "",
+            "url": page.get("url", ""),
+            "addedBy": N.people_names(page, "Person"),
+            "verifier": N.people_names(page, "Verifier"),
+            "replaces": (N.read(page, "Previous Component") or "").strip(),
+            "boards": N.read(page, "Relevant Boards") or "",
+            "status": N.read(page, "Library Status") or "",
+        }
+    by_id = {p["id"]: p for p in pages}
+    parts = {pid: fields(by_id[page_id]) for pid, page_id in sorted(part_page.items()) if page_id in by_id}
+    rows = {name.lower(): fields(p) for p in pages if (name := (N.read(p, "Component Name") or "").strip())}
+    return {"parts": parts, "rows": rows}
+
+
+def write_notion_info(lib, info):
+    """Write the file only when it changed, so the workflow commits only real changes."""
+    data = json.dumps(info, indent=2, ensure_ascii=False, sort_keys=True) + "\n"
+    path = lib.root / INFO_FILE
+    if not path.exists() or path.read_bytes() != data.encode("utf-8"):
+        path.write_bytes(data.encode("utf-8"))
+        return True
+    return False
+
+
 def summary(report, boards):
     out = ["## Parts library → Notion sync", ""]
     out.append(f"Parts: {report['linked']} newly linked, {report['created']} created, "
@@ -430,6 +464,8 @@ def main():
     if args.boards_only:
         sync.part_page = {N.read(p, "Library ID"): p["id"] for p in part_pages if N.read(p, "Library ID")}
     sync.sync_boards(boards, boms, part_pages)
+    if not args.dry_run and write_notion_info(lib, notion_info(part_pages, sync.part_page)):
+        print(f"Updated {INFO_FILE} (the workflow commits it)")
 
     text = summary(sync.report, boards)
     print(text)

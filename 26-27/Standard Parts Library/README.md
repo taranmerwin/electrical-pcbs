@@ -44,9 +44,9 @@ In KiCad, press **A** and search by part number, manufacturer or description. Th
 8. For connectors, add the mating **housing and crimp contacts** as accessories at the bottom, so they appear on the BOM.
 9. Click **Save**.
 10. Open **Publish to GitHub** in the left sidebar, check the description, and click **Publish**. A few minutes later the Notion row turns **In library (un-verified)** and its MPN, manufacturer, datasheet, package and category are filled in. Then click **Quit manager**.
-11. The row's **Verifier** checks the part (symbol, footprint, 3D alignment) and sets the status to **Done (added to KiCad library)** in Notion. If the part is changed in the library later, it goes back to *In library (un-verified)* and the Verifier gets a comment to re-check it.
+11. The row's **Verifier** checks the part (symbol, footprint, 3D alignment) and sets the status to **Done (approved and in library)** in Notion. If the part is changed in the library later, it goes back to *In library (un-verified)* and the Verifier gets a comment to re-check it.
 
-**Getting teammates' new parts:** opening the app pulls them automatically. If the app is already open, the **Publish to GitHub** page shows "N updates from teammates to download" with a **Get latest** button. Never pull the library in GitHub Desktop.
+**Getting teammates' new parts:** opening the app pulls them automatically. If the app is already open, click **Refresh** on All components (or **Get latest** on the Publish page). If you have unpublished changes, it tells you to **Publish** instead, which merges theirs and yours. Never pull the library in GitHub Desktop.
 
 ### If Publish says someone else changed the same part
 The app shows who it was and has an **Email** button. Agree with them which version is right, then click **Keep my version** or **Keep their version**. Your work is never lost. Edits to *different* parts or different fields are merged automatically, so you won't see this for them.
@@ -59,6 +59,10 @@ The app shows who it was and has an **Email** button. Agree with them which vers
 - **`26-27/VCU` is a link (git submodule) to the [OTA-pcb-testing](https://github.com/Anteater-Electric-Racing/OTA-pcb-testing) repo.** The launcher downloads its files, or run `git submodule update --init` yourself. To change the VCU board, commit in the OTA-pcb-testing repo (GitHub Desktop lists it as its own repository). Then, to make `electrical-pcbs` point at the new version, run `git submodule update --remote 26-27/VCU` and commit the updated link.
 - Only the current season shows by default. Use **Show older seasons** on the Boards page, or **Older seasons…** in the filter row.
 
+### Who added a part, and what it replaces
+
+Click a part and scroll to **History (from Notion)** at the bottom. It shows the PCB Wiki row's **Person** (added by) and **Previous Component** (what it replaces), plus **Relevant Boards** and **Verifier** when they're set, with a link to the row. To change these, edit the row in Notion. The sync copies them into the library (`appdata/notion-info.json`), so they show up after the next sync and Refresh.
+
 ### Changing or deleting a part
 
 - **To fix details or files:** click the part › **Edit component**, change it, **Save**, then **Publish**.
@@ -70,6 +74,7 @@ Resistors and capacitors in standard sizes (0402/0603/0805...) share one model. 
 
 ## Rules
 
+- **You can keep KiCad open** while adding parts, publishing and getting teammates' parts. Each PC builds its own parts database (`appdata/parts.sqlite`, not in git), so git never has to replace the file KiCad keeps open. Restart KiCad, or reopen the symbol chooser, to see new parts.
 - **Publish right after you save.** Don't leave changes sitting on your PC.
 - **The library is the source of truth.** In Notion, edit only the planning columns (Key Specs, Person, Verifier, Notes...). The sync overwrites MPN, Manufacturer, Datasheet and Package/Footprint from the library, and comments on the row to tell you when it does. To change those values, edit the part in the app and publish.
 - Only change the library through the app. Don't rename or move files inside `Anteater Parts/` by hand. You may move a *whole* component folder to another category, then click **Refresh** in the app.

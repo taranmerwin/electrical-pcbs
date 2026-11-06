@@ -22,11 +22,12 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, Library, Part } from "./api";
+import { api, Library, Part, token } from "./api";
 import ImportDialog from "./ImportDialog";
 import ComponentPreviews from "./ComponentPreviews";
 import CatalogPreviews from "./CatalogPreviews";
 import { Publish } from "./Publish";
+import { NotionInfo } from "./NotionInfo";
 import { addBoardPrompt, BoardsOverview, BoardTags, BoardView, BoardsState, FilterBar } from "./Boards";
 import teamLogo from "./anteater-logo.png";
 import {
@@ -64,6 +65,34 @@ export default function App() {
     [boardKey, setBoardKey] = useState(""),
     [showOldSeasons, setShowOldSeasons] = useState(false),
     [boardFilter, setBoardFilter] = useState("");
+  // Anteater Racing: part files dropped into the library without importing
+  const [rawFolders, setRawFolders] = useState<any[]>([]),
+    [rawImport, setRawImport] = useState<{ folder: string; category: string } | null>(null);
+  const loadRawFolders = useCallback(() => {
+    if (!library || library.recoveryNeeded) return setRawFolders([]);
+    api<any[]>("raw-folders").then(setRawFolders).catch(() => setRawFolders([]));
+  }, [library?.revision, library?.recoveryNeeded]);
+  useEffect(loadRawFolders, [loadRawFolders]);
+  async function importRawFolder(f: any) {
+    try {
+      const entries = await Promise.all(
+        f.files.map(async (name: string) => {
+          const r = await fetch(
+            "/api/raw-folders/file?folder=" + encodeURIComponent(f.folder) + "&name=" + encodeURIComponent(name),
+            { headers: { "X-Library-Token": token() } },
+          );
+          if (!r.ok) throw new Error("Couldn't read " + name);
+          return { file: new File([await r.blob()], name), name };
+        }),
+      );
+      setRawImport({ folder: f.folder, category: f.category });
+      setDropEntries(entries);
+      setEditing("");
+      setImporting(true);
+    } catch (e) {
+      notify(String(e), true);
+    }
+  }
   const loadBoards = useCallback(() => {
     if (!library || library.recoveryNeeded) return setBoards(null);
     api<BoardsState>("boards").then(setBoards).catch(() => setBoards(null));
@@ -90,6 +119,20 @@ export default function App() {
       setLoading(false);
     }
   }, []);
+  // Refresh button: download teammates' published parts first, then reload
+  const [pulling, setPulling] = useState(false);
+  const pullAndRefresh = async () => {
+    setPulling(true);
+    try {
+      const r = await api("pull", {});
+      if (r.library) setLibrary(r.library);
+      if (r.message) setNotice({ text: r.message, error: false });
+    } catch (e) {
+      setNotice({ text: String(e), error: true });
+    } finally {
+      setPulling(false);
+    }
+  };
   useEffect(() => {
     refresh();
   }, [refresh]);
@@ -574,11 +617,34 @@ export default function App() {
                 />
                 <kbd>⌘F</kbd>
               </div>
-              <button className="secondary" onClick={refresh}>
+              <button className="secondary" onClick={pullAndRefresh} disabled={pulling}
+                title="Get teammates' published parts from GitHub and reload">
                 <SlidersHorizontal size={16} />
-                Refresh
+                {pulling ? "Updating…" : "Refresh"}
               </button>
             </div>
+            {rawFolders.length > 0 && (
+              <div className="raw-folders">
+                <strong>
+                  {rawFolders.length} folder{rawFolders.length === 1 ? " has" : "s have"} part files that
+                  were never imported, so {rawFolders.length === 1 ? "it doesn't" : "they don't"} show up in KiCad.
+                </strong>
+                <span className="muted"> Usually someone uploaded vendor downloads straight to GitHub. Import each one here:</span>
+                <ul>
+                  {rawFolders.map((f) => (
+                    <li key={f.folder}>
+                      <span>
+                        <b>{f.name}</b> <small>{f.folder.replace(/^components\//, "")}</small>
+                        {f.legacy.length > 0 && <small> · old KiCad 5 files ignored</small>}
+                      </span>
+                      <button className="secondary" onClick={() => importRawFolder(f)}>
+                        Import
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <FilterBar
               library={library}
               boards={boards}
@@ -693,14 +759,26 @@ export default function App() {
           library={library}
           editingID={editing}
           initialEntries={dropEntries}
+          initialCategory={rawImport?.category || ""}
           onClose={() => {
             setImporting(false);
             setEditing("");
             setDropEntries([]);
+            setRawImport(null);
           }}
-          onSave={(l) => {
+          onSave={async (l) => {
             setLibrary(l);
-            notify("Component saved with its models and accessory list.");
+            if (rawImport) {
+              // the part is imported now, so the raw vendor folder can go (it's backed up)
+              try {
+                const r = await api("raw-folders/remove", { folder: rawImport.folder });
+                setLibrary(r.library);
+                notify("Imported, and the original folder was cleaned up. Publish to share it.");
+              } catch (e) {
+                notify("Imported, but the original folder couldn't be removed: " + String(e), true);
+              }
+              setRawImport(null);
+            } else notify("Component saved with its models and accessory list.");
           }}
         />
       )}
@@ -829,6 +907,7 @@ Its accessories go too: ${plan.accessories.join(", ")}`
             {boards && (
               <BoardTags key={selected.ID} part={selected} boards={boards} notify={notify} onBoards={setBoards} />
             )}
+            <NotionInfo key={"notion-" + selected.ID} partID={selected.ID} />
           </section>
         </div>
       )}

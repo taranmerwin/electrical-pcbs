@@ -6,7 +6,11 @@
       "items": {
         "LM_8960b80c09_3b1aa8907438:1724470004": "1724470004",
         "LM_8960b80c09_38dff94c6e3c:614004135023": "614004135023",
+<<<<<<< HEAD
         "LM_8960b80c09_a8eedc4d2deb:3557-2": "3557-2"
+=======
+        "LM_8960b80c09_17a09dc2645c:776280-1": "776280-1"
+>>>>>>> 916961b2389d69c2feb264b254eb6b502e5ffced
       }
     },
     "components/Capacitor": {
@@ -66,7 +70,8 @@
       "name": "Anteater - Resistor",
       "items": {
         "LM_8960b80c09_c45e224bdcaa:MP925-1": "MP925-1",
-        "LM_8960b80c09_a47979b1b2d9:RTO020F47R00JTE3": "RTO020F47R00JTE3"
+        "LM_8960b80c09_a47979b1b2d9:RTO020F47R00JTE3": "RTO020F47R00JTE3",
+        "LM_8960b80c09_resistor:R_0805_2012Metric": "R_0805_2012Metric"
       }
     },
     "components/Timer": {
@@ -79,6 +84,26 @@
       "name": "Anteater - CAN Transceiver",
       "items": {
         "LM_8960b80c09_9921044ddebd:TCAN330GD": "TCAN330GD"
+      }
+    },
+    "components/Regulator": {
+      "name": "Anteater - Regulator",
+      "items": {
+        "LM_8960b80c09_62d0439f7dcf:TPSM63606RDLR": "TPSM63606RDLR",
+        "LM_8960b80c09_e1c066a53daf:MIC5528-3.3YMT-TR": "MIC5528-3.3YMT-TR",
+        "LM_8960b80c09_1952aefc88b3:TPS561201DDCR": "TPS561201DDCR"
+      }
+    },
+    "components/Microcontroller": {
+      "name": "Anteater - Microcontroller",
+      "items": {
+        "LM_8960b80c09_31231cf68467:Adafruit_Feather_ESP32S3_5323": "Adafruit_Feather_ESP32S3_5323"
+      }
+    },
+    "components/Switch": {
+      "name": "Anteater - Switch",
+      "items": {
+        "LM_8960b80c09_1f5631896eca:KMR241G LFS": "KMR241G LFS"
       }
     }
   }

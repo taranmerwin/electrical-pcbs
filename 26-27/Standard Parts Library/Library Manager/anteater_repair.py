@@ -26,6 +26,18 @@ from manager.anteater_publish import Git, _rebuild, _resolve  # noqa: E402
 from manager.storage import Library  # noqa: E402
 
 
+def safe_pull(lib):
+    """Launcher pull: get teammates' parts, even with KiCad open, unless the update would
+    have to replace a file KiCad holds open (then skip it rather than half-pull)."""
+    from manager.anteater_publish import get_latest
+
+    print("Getting the latest parts from GitHub...")
+    message = get_latest(lib)["message"]
+    if message:
+        print("  " + message)
+    return check_generated(Library(lib.root))
+
+
 def check_generated(lib):
     from manager.anteater_guard import conflicted_files
     from manager.anteater_publish import _same
@@ -69,6 +81,8 @@ def main():
     lib = Library(sys.argv[1])
     if "--check-generated" in sys.argv:
         return check_generated(lib)
+    if "--pull" in sys.argv:
+        return safe_pull(lib)
     g = Git(lib)
     git_dir = Path(g.out("rev-parse", "--git-dir"))
     git_dir = git_dir if git_dir.is_absolute() else g.top / git_dir
